@@ -1,0 +1,46 @@
+---
+title: "Homework 9"
+author: "Joseph Shin"
+date: "2025-10-18"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Question 12.1
+Describe a situation or problem from your job, everyday life, current events, etc., for which a design of experiments approach would be appropriate.
+
+Question 12.2
+To determine the value of 10 different yes/no features to the market value of a house (large yard, solar roof, etc.), a real estate agent plans to survey 50 potential buyers, showing a fictitious house with different combinations of features. To reduce the survey size, the agent wants to show just 16 fictitious houses. Use R’s FrF2 function (in the FrF2 package) to find a fractional factorial design for this experiment: what set of features should each of the 16 fictitious houses have? Note: the output of FrF2 is
+“1” (include) or “-1” (don’t include) for each feature.
+
+# 10 Different yes/no features (so 10 factors)
+
+# 50 Potential Buyers
+
+# Show 16 fictitious houses (so 16 runs)
+
+# Find Fractional Factorial design: Set of features for each of the houses
+
+# Output of FrF2 is '1' (include) or '-1' (don't include) for each feature
+
+# A design with resolution III (resolution=3) confounds main effects with 2-factor interactions, a design with resolution IV confounds main effects with three-factor interactions or 2-factor interactions with each other, and designs with resolution V or higher are usually regarded as very strong, because all 2-factor interactions are unconfounded with each other and with main effects.
+
+```{r}
+library(FrF2)
+```
+
+```{r}
+features <- c("Large_Yard", "Solar_Roof", "Garage", "Swimming_Pool", 
+              "Fireplace", "Hardwood_Floors", "Open_Layout", "Basement", 
+              "Smart_Home", "Near_Park")
+```
+
+```{r}
+res3 = FrF2(nfactors = 10, resolution = 3, factor.names = features, randomize = TRUE)
+print(res3)
+```
+
+```{r}
+aliasprint(res3)
+```

@@ -1,0 +1,233 @@
+---
+title: "Homework 6"
+author: "Joseph Shin"
+date: "2025-09-27"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Question 9.1
+
+Using the same crime data set uscrime.txt as in Question 8.2, apply Principal Component Analysis and
+then create a regression model using the first few principal components. Specify your new model in
+terms of the original variables (not the principal components), and compare its quality to that of your
+solution to Question 8.2. You can use the R function prcomp for PCA. (Note that to first scale the data,
+you can include scale. = TRUE to scale as part of the PCA function. Don’t forget that, to make a
+prediction for the new city, you’ll need to unscale the coefficients (i.e., do the scaling calculation in
+reverse)!)
+
+
+```{r}
+crime = read.table('uscrime.txt', header = TRUE)
+crime = crime[-c(4, 26),]
+crime
+```
+First, I removed the outliers from the original dataset where the crime rate was valued at 1993 and 1969. The reason is that Principal Component Analysis can be sensitive to outliers.
+
+
+```{r}
+hist(crime$Crime)
+```
+
+From this histogram, we see that for lower crime rates, there is less variance, while for higher crime rates, there is higher variance. Therefore, we know that heteroscedasticity is exists in the data. I will perform Box Cox transformation to equalize the variance.
+
+```{r}
+library(MASS)
+library(car)
+```
+
+To start off, I created my first Principal Component Analysis function with the data and scaled it. 
+
+```{r}
+model = lm(Crime ~., data = crime)
+plot(model)
+```
+
+On the residual plot, the residuals fan out, forming a "U" shape, or a funnel shape. This means that heteroscedasticity (unequal variance) is present in this model. The lower and higher fitted values have a higher variance while the values in between have a lower variance. We should transform the response variable, Crime, to equal out the variances. We will equal the variance through PCA.
+
+
+```{r}
+pca = prcomp(crime[,1:15], scale. = TRUE)
+summary(pca)
+```
+# pca$rotation is the matrix of the eigenvectors.
+
+```{r}
+pca$rotation[,1:4]
+```
+
+
+
+```{r}
+screeplot(pca, type = 'lines', col = 'blue')
+```
+Based on this elbow plot, I have decided to use the first four principal components since the line levels off at 4.
+
+
+# Get first 4 principal components.
+
+```{r}
+pc = pca$x[,1:4]
+pc
+```
+
+# I built a linear regression model with the first four principal components. Then, I used the vif() function to see if variance inflation was present.
+
+```{r}
+crimepc = cbind(pc, crime[,16])
+modelpc = lm(V5~., data = as.data.frame(crimepc))
+summary(modelpc)
+```
+
+
+```{r}
+vif(modelpc)
+```
+
+
+
+# We are transforming them back into the terms of the original variables to get the original coefficients.
+
+# In this code, the first matrix is the rotation matrix of the first four principal components. The rotation matrix is a matrix with the eigenvalues. This will tell us how each original variable contributes to each principal component. The second matrix is the model with the regression coefficients of the first four principal components, excluding the intercept. In other words, this is the linear combination of the original variables that correspond to my PCA regression model. I multiplied both matrices to get the model coefficients in the scaled variable space.
+```{r}
+reverse_pca = pca$rotation[,1:4] %*% coef(modelpc)[-1]
+reverse_pca
+```
+
+# pca$center are the means of each original variable. pca$scale are the standard deviations of each original variable. I stored into the variables "x_means" and "x_std".
+
+```{r}
+x_means = pca$center
+x_std = pca$scale
+```
+
+# The next block of code is where I performed the transformation back to the original coefficients. I calculated the original coefficients by dividing the standard deviations from the model coefficients in the scaled variable space. This is the action of "unscaling". I calculated the original intercept by getting the coefficients of the PCA model's intercept and subtracting that by the sum of the mean of each scaled variable (x_means / x_std) and then multiplying that value by the regression coefficient vector in the scaled variable space.
+
+```{r}
+coef_og = reverse_pca / x_std
+intercept = coef(modelpc)[1] - sum((x_means / x_std) * reverse_pca)
+```
+
+# Here is the output of the original coefficients and intercept.
+
+```{r}
+coef_og
+intercept
+```
+
+# Finally, I used the testing points from the previous homework. In order to predict the crime rate, I used this formula: Intercept from original variable space + sum of (the coefficients from original variable space * the testing points).
+
+```{r}
+test_point = data.frame(M = 14.0, So = 0, Ed = 10.0, Po1 = 12.0, Po2 = 15.5, LF = 0.640, M.F = 94.0, Pop = 150, NW = 1.1, U1 = 0.120, U2 = 3.6, Wealth = 3200, Ineq = 20.1, Prob = 0.04, Time = 39.0)
+
+pred_crime = intercept + sum(coef_og * unlist(test_point))
+
+cat(paste('Predicted Crime Rate:', pred_crime))
+```
+
+# The predicted crime rate is 1118.
+
+
+
+pca$center are the means of each original variable.
+pca$scale are the standard deviations of each original variable.
+#sdev = square root of eigenvalues
+#rotation = eignvectors
+#center and scale important for doing descaling. Gives you mean and std used to scale PR comp to scale data.
+
+
+
+# Now, I will redo the whole process but with the first 5 principal components instead.
+```{r}
+pca1 = prcomp(crime[,1:15], scale. = TRUE)
+summary(pca1)
+pca1$rotation[,1:5]
+pc1 = pca1$x[,1:5]
+
+crimepc1 = cbind(pc1, crime[,16])
+modelpc1 = lm(V6~., data = as.data.frame(crimepc1))
+summary(modelpc1)
+vif(modelpc1)
+
+reverse_pca1 = pca1$rotation[,1:5] %*% coef(modelpc1)[-1]
+
+x_means1 = pca1$center
+x_std1 = pca1$scale
+
+coef_og1 = reverse_pca1 / x_std1
+intercept1= coef(modelpc1)[1] - sum((x_means1 / x_std1) * reverse_pca1)
+
+
+test_point = data.frame(M = 14.0, So = 0, Ed = 10.0, Po1 = 12.0, Po2 = 15.5, LF = 0.640, M.F = 94.0, Pop = 150, NW = 1.1, U1 = 0.120, U2 = 3.6, Wealth = 3200, Ineq = 20.1, Prob = 0.04, Time = 39.0)
+
+pred_crime1 = intercept1 + sum(coef_og1 * unlist(test_point))
+
+cat(paste('Predicted Crime Rate:', pred_crime1))
+```
+
+```{r}
+pca2 = prcomp(crime[,1:15], scale. = TRUE)
+summary(pca2)
+pca2$rotation[,1:6]
+pc2 = pca2$x[,1:6]
+
+crimepc2 = cbind(pc2, crime[,16])
+modelpc2 = lm(V7~., data = as.data.frame(crimepc2))
+summary(modelpc2)
+vif(modelpc2)
+
+reverse_pca2 = pca2$rotation[,1:6] %*% coef(modelpc2)[-1]
+
+x_means2 = pca2$center
+x_std2 = pca2$scale
+
+coef_og2 = reverse_pca2 / x_std2
+intercept2= coef(modelpc2)[1] - sum((x_means2 / x_std2) * reverse_pca2)
+
+
+test_point = data.frame(M = 14.0, So = 0, Ed = 10.0, Po1 = 12.0, Po2 = 15.5, LF = 0.640, M.F = 94.0, Pop = 150, NW = 1.1, U1 = 0.120, U2 = 3.6, Wealth = 3200, Ineq = 20.1, Prob = 0.04, Time = 39.0)
+
+pred_crime2 = intercept2 + sum(coef_og2 * unlist(test_point))
+
+cat(paste('Predicted Crime Rate:', pred_crime2))
+```
+
+As you can see, as we add more principal components to our model, the adjusted R-squared increases. This makes sense because as we add more components, it explains more of the variance since we add more variables. However, as we add variables, there is more chance of overfitting. Therefore, I decided to stick with the model with the first four principal components.
+
+```{r}
+linmod = lm(Crime ~ Ed + Po1 + Ineq + Prob, data = crime)
+summary(linmod)
+vif(linmod)
+```
+```{r}
+summary(modelpc1)
+```
+
+Let's compare the PCA model quality to our linear regression model from the previous homework. The linear regression model included the variables: Ed, Po1, Ineq, and Prob. Here is the summary of the model:
+
+The regular model has a higher adjusted R-squared, lower RSE, and lower p-value, which are better model qualities. However, the variance is still unequal (heteroscedasticity). Let's compare it to the other VIF values from the PCA model.
+
+```{r}
+vif(modelpc)
+```
+
+The VIF values of the first four principal components are all 1. This is very good, and it proves that PCA removes multicollinearity. Therefore, all of the variances are equal and heteroscedasticity does not exist anymore. Even though the PCA regression had a lower R-squared, it removed multicollinearity, used fewer effective parameters, and reduced test error. Since our goal is to predict the crime rate, reducing test error means getting a more accurate prediction of the crime rate, which is what we should prioritize.
+
+
+
+```{r}
+pca1 = prcomp(crime[,1:4], scale. = TRUE)
+summary(pca1)
+```
+
+```{r}
+pca2 = prcomp(crime[,1:5], scale. = TRUE)
+summary(pca2)
+```
+
+```{r}
+pca3 = prcomp(crime[,1:6], scale. = TRUE)
+summary(pca3)
+```
+

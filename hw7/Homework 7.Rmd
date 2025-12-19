@@ -1,0 +1,359 @@
+---
+title: "Homework 7"
+author: "Joseph Shin"
+date: "2025-10-06"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Question 10.1
+Using the same crime data set uscrime.txt as in Questions 8.2 and 9.1, find the best model you can using
+
+(a) a regression tree model, and
+(b) a random forest model.
+In R, you can use the tree package or the rpart package, and the randomForest package. 
+
+For each model, describe one or two qualitative takeaways you get from analyzing the results (i.e., don’t just
+stop when you have a good model, but interpret it too).
+
+
+
+Notes from office hour: 
+
+1. Compare different tree models using confusion matrix.
+
+2. If we run CV, pruning is a way to prevent overfitting or tune.
+
+3. For logistic, 1 is generally considered the "effect" ("sick", "approved", etc) and 0 would be the "no effect" response.
+
+```{r}
+rm(list = ls())
+crime = read.table('uscrime.txt', stringsAsFactors = FALSE, header = TRUE)
+crime
+```
+# Importing packages
+```{r}
+library(tree)
+library(randomForest)
+```
+
+First, let's use the tree function on the whole dataset and look at the summary of the tree.
+
+# Regression Tree Model
+```{r}
+uscrime_tree = tree(Crime ~., data = crime)
+summary(uscrime_tree)
+```
+
+The summary of the tree tells us the number of terminal nodes, the residual mean deviance, and the distribution of residuals. The lower the residual mean deviance, the better the fit. If there are less terminal nodes, then the model is simpler, leading to risk of underfitting while more terminal nodes mean the model is more complex, leading to risk of overfitting; Therefore, we can prune the tree and choose the smallest tree that achieves minimum deviance.
+
+Next, I plotted the tree model. After that, I used frame and where functions on uscrime_tree to display the observation index on the first row and the leaf IDs on the second row (which terminal node each observation ended up in).
+
+```{r}
+plot(uscrime_tree)
+text(uscrime_tree)
+uscrime_tree$frame
+uscrime_tree$where
+```
+
+As you can see in the tree diagram above, there are seven different terminal nodes on the bottom. In the numerical output, it shows the observation index and leaf IDs. For example, the first observation falls into leaf 6, the second observation falls into leaf 13, and so on.
+
+Then, I graphed a plot of the prediction of the tree model on the x-axis and the response variable on the y-axis. I calculated the R-squared value of the model by using the formula.
+
+```{r}
+yhat_tree = predict(uscrime_tree)
+plot(yhat_tree, crime$Crime)
+
+y = crime$Crime
+R2 = 1 - sum((y - yhat_tree)^2) / sum((y - mean(y))^2)
+R2
+```
+
+The R-squared value is 72.44962%. This is a decent R-squared value. 72.44962% of the variance is explained by the tree model.
+
+I used prune.tree to get the number of terminal nodes and deviance of each.
+
+```{r}
+prune.tree(uscrime_tree)$size
+prune.tree(uscrime_tree)$dev
+```
+
+
+Based on the deviance results above, at leaf 7, the deviance is the lowest. This means that it is a good fit and the tree's predictions are closer to the actual values. The tree's structure captures the patterns and relationships within the data. Therefore, I stuck with the original tree model (7 terminal nodes).
+
+
+```{r}
+uscrime_tree_prune = prune.tree(uscrime_tree, best = 7)
+plot(uscrime_tree_prune)
+text(uscrime_tree_prune)
+```
+
+
+Our final regression tree model is uscrime_tree_prune, which uses seven terminal nodes.
+
+# Random Forest Model
+
+#Grow the random trees and set the number of predictors that you want to consider at each split of the tree (numpred). A good recommendation for numpred is 1 + log(n) or n/3 where n is number of predictors.
+```{r}
+rm(list = ls())
+crime = read.table('uscrime.txt', stringsAsFactors = FALSE, header = TRUE)
+
+set.seed(123)
+num_pred = 4
+rf_crime = randomForest(Crime~.,
+                        data = crime,
+                        mtry = num_pred,
+                        importance = TRUE,
+                        ntree = 500)
+rf_crime
+```
+
+
+
+```{r}
+importance(rf_crime)
+varImpPlot(rf_crime)
+```
+Based on this output, the important variables are Po1, Po2, NW, and Prob. The reason for this is that the %IncMSE is the highest for those four variables. %IncMSE represents the percent increase in mean squared error, and it is important for prediction accuracy. They are also in the top 5 for IncNodePurity, which is important for explaining variance in training data.
+
+
+```{r}
+yhat_rf = predict(rf_crime)
+R2_rf = 1 - sum((crime$Crime - yhat_rf)^2) / sum((crime$Crime - mean(crime$Crime))^2)
+R2_rf
+```
+
+The R-squared of rf_crime is 42.46135%. This means that 42.46135% of the variance is explained by the random forest model.
+
+I created a new model, but I chose to use 5 predictors. This is because using the number of predictors divided by 3 is a good value to test.
+
+```{r}
+set.seed(123)
+num_pred = 5
+rf_crime1 = randomForest(Crime~.,
+                        data = crime,
+                        mtry = num_pred,
+                        importance = TRUE,
+                        ntree = 500)
+rf_crime1
+```
+```{r}
+importance(rf_crime1)
+varImpPlot(rf_crime1)
+```
+
+I got the same important predictors as the first model. However, the values of the %IncMSE and IncNodePurity are higher than the first model's. The R-squared value was a bit higher, by about .2 percent. Therefore, using five predictors is better than four.
+
+I decided to use tuneRF() to help me decide how many predictors to use.
+
+```{r}
+tuneRF(crime[ , -which(names(crime) == "Crime")],
+       crime$Crime,
+       stepFactor = 1.5, improve = 0.01)
+```
+
+As you can see in this output, the OOB Error is lowest when mtry = 10. OOB Error is the mean squared prediction error calculated on "out-of-bag" samples.
+
+```{r}
+set.seed(123)
+num_pred = 10
+rf_crime2 = randomForest(Crime~.,
+                        data = crime,
+                        mtry = num_pred,
+                        importance = TRUE,
+                        ntree = 500)
+rf_crime2
+```
+
+```{r}
+importance(rf_crime2)
+varImpPlot(rf_crime2)
+```
+
+Using ten predictors, the model has higher %IncMSE and IncNodePurity than those of the model with five predictors. However, it sacrifices a lot of percent in R-squared. Therefore, I think the model with five predictors is better.
+
+Finally, I will use five predictors but change the number of trees in the forest.
+
+```{r}
+set.seed(123)
+num_pred = 5
+rf_crime3 = randomForest(Crime~.,
+                        data = crime,
+                        mtry = num_pred,
+                        importance = TRUE,
+                        ntree = 1000)
+rf_crime3
+```
+
+```{r}
+importance(rf_crime3)
+varImpPlot(rf_crime3)
+```
+I've tested multiple number of trees in the forest, and it seems like I get the best performance from when ntree = 1000. The R-squared is valued at 43.25%, which is the highest I have gotten so far. Additionally, the overall %IncMSE is higher than the other models. The IncNodePurity is lower than the previous two models, but it is still high enough to reduce the prediction error within the trees. Therefore, the best random Forest model is when we use five predictors and 1000 trees, and the important variables are Po1, Po2, NW, and Prob.
+
+
+
+Question 10.2
+Describe a situation or problem from your job, everyday life, current events, etc., for which a logistic
+regression model would be appropriate. List some (up to 5) predictors that you might use.
+
+From an academic perspective, we could use a logistic regression model where the response variable is whether a student passes an exam (1) or a student does not pass the exam (0). Some predictors that we may use are amount of hours spent studying, percentage of class attendance, number of office hours attended, average homework grade percentage, and number of hours slept.
+
+Question 10.3
+1. Using the GermanCredit data set germancredit.txt, use logistic regression to find a good predictive model for whether credit applicants are good credit risks or not. Show your model (factors used and their coefficients), the software output, and the quality of fit. You can use the glm function in R. To get a logistic regression (logit) model on data where the
+response is either zero or one, use family=binomial(link=”logit”) in your glm
+function call.
+
+```{r}
+rm(list = ls())
+german = read.table('germancredit.txt', sep = ' ')
+german
+```
+
+```{r}
+german$V21[german$V21 == 1] = 0
+german$V21[german$V21 == 2] = 1
+head(german)
+```
+
+```{r}
+german_train = german[1:800,]
+german_test = german[801:1000,]
+```
+
+```{r}
+german_mod = glm(V21 ~.,
+                 family = binomial(link = "logit"),
+                 data = german_train)
+summary(german_mod)
+```
+
+```{r}
+yhat_log = predict(german_mod, german_test, type = "response")
+yhat_log
+```
+
+```{r}
+library(pROC)
+roc(german_test$V21, round(yhat_log))
+```
+
+```{r}
+german_step = step(german_mod, direction = 'both')
+summary(german_step)
+```
+I performed stepwise selection to choose which variables are important based on their AIC values. The selection process chose the variables: V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V13, V16, V18, V20.
+
+Based on the summary of the new model, it has a lower AIC compared to the original model, valued at 791.52. However, it has a slightly higher RSE.
+
+```{r}
+yhat_log1 = predict(german_step, german_test, type = "response")
+yhat_log1
+roc(german_test$V21, round(yhat_log1))
+```
+
+Stepwise selection focuses on model selection and prioritizes lower AIC. However, the AUC is lower than the AUC of my original logistic regression model. We want to focus on higher AUC because we want to find a good predictive model, so predictive accuracy should be the focus. Therefore, I chose to stick with my original logistic regression model.
+
+
+
+2. Because the model gives a result between 0 and 1, it requires setting a threshold probability to
+separate between “good” and “bad” answers. In this data set, they estimate that incorrectly
+identifying a bad customer as good, is 5 times worse than incorrectly classifying a good
+customer as bad. Determine a good threshold probability based on your model.
+
+
+```{r}
+thresh = 0.6
+yhat_thresh = as.integer(yhat_log > thresh)
+conf_matrix = as.matrix(table(yhat_thresh, german_test$V21))
+conf_matrix
+```
+I created a confusion matrix with respect to the threshold, 0.6. Then, I created variables TP, TN, FP, FN and assigned the value for each one.
+
+```{r}
+TP = conf_matrix[2, 2]
+TN = conf_matrix[1, 1]
+FP = conf_matrix[2, 1]
+FN = conf_matrix[1, 2]
+
+cat('True Positive = ', TP, '\n')
+cat('True Negative = ', TN, '\n')
+cat('False Positive = ', FP, '\n')
+cat('False Negative = ', FN, '\n')
+```
+
+I calculated the specificity, sensitivity, precision, and accuracy.
+```{r}
+accuracy = (TP + TN) / (TP + TN + FP + FN)
+sensitivity = TP / (TP + FN)
+specificity = TN / (TN + FP)
+precision = TP / (TP + FP)
+
+cat('Accuracy = ', round(accuracy * 100, 3), '%\n')
+cat('Sensitivity = ', round(sensitivity * 100, 3), '%\n')
+cat('Specificity = ', round(specificity * 100, 3), '%\n')
+cat('Precision = ', round(precision * 100, 3), '%\n')
+```
+
+The question states that incorrectly identifying a bad customer as good is five times worse than incorrectly classifying a good customer as bad. From these performance metrics, specificity is the most important because it emphasizes how many bad customers we correctly reject. The specificity is 89.209%.
+
+Now, let's try to find an ideal threshold to minimize the total cost as much as possible.
+
+```{r}
+FP_cost = 5
+FN_cost = 1
+
+total_cost = FP_cost * FP + FN_cost * FN
+average_cost = total_cost / sum(conf_matrix)
+average_cost
+```
+
+Now, let's try to find an ideal threshold to minimize the total cost as much as possible.
+
+```{r}
+thresholds <- seq(0.1, 0.9, 0.01)
+costs <- sapply(thresholds, function(t) {
+  preds <- ifelse(yhat_log > t, 1, 0)
+  cm <- table(preds, german_test$V21)
+  FP <- cm[2, 1]
+  FN <- cm[1, 2]
+  5*FP + 1*FN
+})
+best_threshold <- thresholds[which.min(costs)]
+best_threshold
+```
+
+```{r}
+thresh1 = 0.86
+yhat_thresh1 = as.integer(yhat_log > thresh1)
+conf_matrix1 = as.matrix(table(yhat_thresh1, german_test$V21))
+conf_matrix1
+```
+
+```{r}
+TP1 = conf_matrix1[2, 2]
+TN1 = conf_matrix1[1, 1]
+FP1 = conf_matrix1[2, 1]
+FN1 = conf_matrix1[1, 2]
+
+cat('True Positive = ', TP1, '\n')
+cat('True Negative = ', TN1, '\n')
+cat('False Positive = ', FP1, '\n')
+cat('False Negative = ', FN1, '\n')
+```
+
+```{r}
+accuracy1 = (TP1 + TN1) / (TP1 + TN1 + FP1 + FN1)
+sensitivity1 = TP1 / (TP1 + FN1)
+specificity1 = TN1 / (TN1 + FP1)
+precision1 = TP1 / (TP1 + FP1)
+
+cat('Accuracy = ', round(accuracy1 * 100, 3), '%\n')
+cat('Sensitivity = ', round(sensitivity1 * 100, 3), '%\n')
+cat('Specificity = ', round(specificity1 * 100, 3), '%\n')
+cat('Precision = ', round(precision1 * 100, 3), '%\n')
+```
+
+As you can see from these results, the specificity is significantly higher, valued at 98.561%. This means that our model correctly rejects bad customers 98.561% of the time, which is very good since it is almost perfect.
+

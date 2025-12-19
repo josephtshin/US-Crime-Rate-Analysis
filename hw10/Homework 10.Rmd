@@ -1,0 +1,230 @@
+---
+title: "Homework 10"
+author: "Joseph Shin"
+date: "2025-10-24"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+Question 14.1
+The breast cancer data set breast-cancer-wisconsin.data.txt from
+https://archive.ics.uci.edu/dataset/15/breast+cancer+wisconsin+original (description available at the
+same URL) has missing values.
+
+```{r}
+col_names <- c(
+  "sample_code_number", "clump_thickness", "uniformity_cell_size", "uniformity_cell_shape",
+  "marginal_adhesion", "single_epithelial_cell_size", "bare_nuclei", "bland_chromatin",
+  "normal_nucleoli", "mitoses", "class"
+)
+
+data = read.csv('breast-cancer-wisconsin.data.txt',
+                header = FALSE,
+                col.names = col_names,
+                na.strings = '?')
+data
+
+clean_data = data
+```
+
+# According to https://archive.ics.uci.edu/dataset/15/breast+cancer+wisconsin+original, bare_nuclei has missing values. When looking at the dataset, the missing value is labeled as '?'.
+
+1. Use the mean/mode imputation method to impute values for the missing data.
+
+First, I got the summary of the data. The summary shows the minimum, first quartile, median, mean, third quartile, and maximum for each column.
+```{r}
+summary(clean_data)
+```
+I used mean() to calculate the mean of the variable, bare_nuclei, while na.rm = TRUE.
+```{r}
+mean_bare_nuclei = mean(clean_data$bare_nuclei,
+                        na.rm = TRUE)
+mean_bare_nuclei
+```
+
+The mean is 3.544656.
+
+Let's see which observations have NA values.
+```{r}
+na_bare_nuclei = which(is.na(clean_data$bare_nuclei) == TRUE)
+na_bare_nuclei
+```
+These are the observations where the bare nuclei shows NA values.
+
+
+Now, we replace the NA values with the mean value of the bare nuclei. The mean is 3.544656, so we replace all the NA's with that value.
+```{r}
+clean_data$bare_nuclei[na_bare_nuclei] = mean_bare_nuclei
+clean_data$bare_nuclei[na_bare_nuclei]
+```
+
+This is proof that we replaced all of the NA values with the mean value, 3.544656.
+
+Now, let's use mode imputation to impute the values for the missing data. First, I will create a function to get the mode.
+
+```{r}
+data_mode = read.csv('breast-cancer-wisconsin.data.txt',
+                header = FALSE,
+                col.names = col_names,
+                na.strings = '?')
+clean_data_mode = data_mode
+```
+
+```{r}
+get_mode = function(x) {
+  x = na.omit(x)
+  uniq_vals = unique(x)
+  uniq_vals[which.max(tabulate(match(x, uniq_vals)))]
+}
+```
+
+Next, I will replace the NA values of the data with the mode of the bare_nuclei values.
+
+```{r}
+clean_data_mode$bare_nuclei = as.numeric(as.character(clean_data_mode$bare_nuclei))
+mode_bare_nuclei = get_mode(clean_data_mode$bare_nuclei)
+mode_bare_nuclei
+```
+
+The mode for bare_nuclei is 1.
+
+```{r}
+na_mode_bare_nuclei = which(is.na(clean_data_mode$bare_nuclei) == TRUE)
+na_mode_bare_nuclei
+```
+
+```{r}
+clean_data_mode$bare_nuclei[na_mode_bare_nuclei] = mode_bare_nuclei
+clean_data_mode$bare_nuclei[na_mode_bare_nuclei]
+```
+
+This is proof that I replaced all of the NA values of bare nuclei with the mode, 1.
+
+2. Use regression to impute values for the missing data.
+
+```{r}
+set.seed(123)
+data_regression = read.csv('breast-cancer-wisconsin.data.txt',
+                header = FALSE,
+                col.names = col_names,
+                na.strings = '?')
+data_regression = data_regression[,-1]
+na.index = which(is.na(data_regression$bare_nuclei), arr.ind = TRUE)
+new_data_regression = data_regression[-na.index, 2:10]
+
+fit = lm(bare_nuclei ~., data = new_data_regression)
+summary(fit)
+```
+
+I used stepwise regression on the regression model.
+
+```{r}
+library(MASS)
+full.model = fit
+step.model = stepAIC(full.model, direction = 'both', trace = FALSE)
+summary(step.model)
+```
+
+According to the summary of the model, the variables that were selected were uniformity cell size, uniformity cell shape, marginal adhesion, bland chromatin, normal nucleoli, and class. The Adjusted R-squared was 0.6993, which means that 69.93% of the data is explained by the variance. All of the variables are significant as well.
+
+I used trainControl() to control how the stepwise regression model was trained and evaluated. The important features from the results are the RMSE and R-squared.
+
+```{r}
+library(caret)
+set.seed(123)
+train.control = trainControl(method = 'cv', number = 10)
+step.model = train(bare_nuclei ~., data = new_data_regression, 
+                   method = 'leapBackward',
+                   tuneGrid = data.frame(nvmax = 1:4),
+                   trControl = train.control)
+step.model$results
+```
+I used bestTune to get the best model.
+
+```{r}
+step.model$bestTune
+```
+
+The best model is when nvmax is 2. The reason for this is that it has the lowest RMSE and highest R-Squared. Therefore, the best model is a 2-predictor model: clump_thickness + uniform_cell_shape
+
+I imputed the regression values into the data.
+
+```{r}
+pred = predict(step.model, newdata = data_regression[na.index, ])
+data.final.regression = data_regression
+data.final.regression[na.index, ]$bare_nuclei = as.integer(pred)
+head(data.final.regression, 24)
+```
+
+3. Use regression with perturbation to impute values for the missing data.
+
+First, I set the seed. Then, I created a normal distribution where the mean was the predicted values of the regression, and the standard deviation was the standard deviation of those predicted values. Here is the displayed output of the absolute value of those numbers.
+
+```{r}
+set.seed(123)
+n = rnorm(16, mean = pred, sd = sd(pred))
+abs(n)
+```
+
+I replaced the NA values of the original data with the absolute value perturbed regression values. Here is the output of the data:
+
+```{r}
+data.final.regression.perturbed = data_regression
+data.final.regression.perturbed[na.index,]$bare_nuclei = as.integer(abs(n))
+
+head(data.final.regression.perturbed, 24)
+```
+
+As you can see, the NA value at row 24 of bare_nuclei was replaced with 5.
+
+4. (Optional) Compare the results and quality of classification models (e.g., SVM, KNN) build using
+  (1) the data sets from questions 1,2,3;
+
+```{r}
+library(kernlab)
+```
+
+```{r}
+model = ksvm(as.matrix(data[, 2:10]), as.factor(data[,11]), type = 'C-svc', kernel = 'vanilladot', C = 100, scaled = TRUE)
+model
+```
+
+The accuracy percentage is 1 - training error, so 1 - 0.026354 = 0.973646.
+
+  (2) the data that remains after data points with missing values are removed; and
+  
+```{r}
+model_mean = ksvm(as.matrix(clean_data[, 2:10]), as.factor(clean_data[,11]), type = 'C-svc', kernel = 'vanilladot', C = 100, scaled = TRUE)
+model_mean
+
+model_mode = ksvm(as.matrix(clean_data_mode[, 2:10]), as.factor(clean_data_mode[,11]), type = 'C-svc', kernel = 'vanilladot', C = 100, scaled = TRUE)
+model_mode
+
+model_regression = ksvm(as.matrix(data.final.regression[, 2:10]), as.factor(data[,11]), type = 'C-svc', kernel = 'vanilladot', C = 100, scaled = TRUE)
+model_regression
+
+model_perturbed_regression = ksvm(as.matrix(data.final.regression.perturbed[, 2:10]), as.factor(data[,11]), type = 'C-svc', kernel = 'vanilladot', C = 100, scaled = TRUE)
+model_perturbed_regression
+```
+  
+According to the output, when comparing the svm model to the datasets of the mean and mode after NA's are imputed, the accuracy percentage is 1 - 0.026354 = 97.3646%. For the regression models, the accuracy percentage is 100%.
+
+
+
+
+
+
+
+Question 15.1
+Describe a situation or problem from your job, everyday life, current events, etc., for which optimization would be appropriate. What data would you need?
+
+When we perform optimization, we want to look to minimize or maximize something. One example where we can use optimization is if we want to maximize article shares for a news company. We want to collect data that influences user engagement such as the title, length, keywords, polarity, and use of media of the article.
+
+
+
+
+
+
+
+

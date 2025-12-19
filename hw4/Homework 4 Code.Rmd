@@ -1,0 +1,256 @@
+---
+title: "Homework 4"
+author: "Joseph Shin"
+date: "2025-09-12"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+temps = read.table('temps copy.txt', header = TRUE)
+temps
+```
+
+```{r}
+data = as.vector(unlist(temps[,2:21]))
+temps_ts = ts(data, start = 1996, frequency = 123)
+temps_ts
+```
+
+```{r}
+plot(temps_ts, col = "red")
+```
+
+```{r}
+temps_holt = HoltWinters(temps_ts, seasonal = "multiplicative")
+summary(temps_holt)
+```
+
+```{r}
+temps_holt$fitted[1:20,]
+```
+
+```{r}
+plot(decompose(temps_ts, type = "multiplicative"))
+```
+
+```{r}
+plot(temps_holt)
+```
+
+```{r}
+temps_holt1 <- HoltWinters(temps_ts, alpha = NULL, beta = FALSE, gamma = FALSE, seasonal = "multiplicative")
+
+temps_holt2 <- HoltWinters(temps_ts, alpha = NULL, beta = NULL, gamma = FALSE, seasonal = "multiplicative")
+
+temps_holt3 <- HoltWinters(temps_ts, alpha = NULL, beta = FALSE, gamma = NULL, seasonal = "multiplicative")
+
+par(mfrow=c(2,2))
+plot(temps_holt, main="Triple Exponential Smoothing")
+plot(temps_holt1, main="Single Exponential Smoothing")
+plot(temps_holt2, main="Double Exponential Smoothing without Seasonality")
+plot(temps_holt3, main="Double Exponential Smoothing without Trend")
+```
+
+```{r}
+temp_smoothed_mx <- matrix(temps_holt$fitted[,1], nrow = 123)
+
+temp_smoothed <- as.data.frame(temp_smoothed_mx)
+
+colnames(temp_smoothed) <- colnames(temps)[c(3:21)]
+
+temp_smoothed$DAY <- temps$DAY
+head(temp_smoothed)
+```
+
+```{r}
+plot(temps$X1997)
+lines(temp_smoothed$X1997, col = "blue")
+```
+
+```{r}
+plot(temps$X2015)
+lines(temp_smoothed$X2015, col = "orange")
+```
+
+
+```{r}
+library(forecast)
+plot(temps$X1997)
+lines(temp_smoothed$X1997, col = "blue")
+```
+
+```{r}
+s <- rep(0,123)
+#initialize the first value as 0
+s[[1]] <- 0
+#start with a C value of 1/2 of the standard deviation of the year 1997
+sd(temp_smoothed$X1997)
+```
+
+```{r}
+c0 <- 0.5*sd(temp_smoothed$X1997)
+
+#calculate the mean value of the observed proper "summer" high temperature, or the first 75 days of daily high temperatures till mid September.
+mean_temp0 <- mean(temp_smoothed$X1997[1:75])
+
+#calculate the s values by day.
+#Note that we are detecting the change in a decreasing time series trend.
+for (i in 2:123){
+  s[[i]] <- max(0, s[[i-1]] + (mean_temp0 - temp_smoothed$X1997[i] - c0))
+}
+s
+```
+
+```{r}
+t0 <- 5*sd(temp_smoothed[,1])
+
+#plot out the s values over time and the t threshold value
+plot(s)
+abline(h=t0, col="blue")
+```
+
+```{r}
+min(which(s>=t0))
+```
+
+```{r}
+#store all the s values by year in a matrix. It should have 20 columns, including the first column recording the date from July 1st.
+s_all <- data.frame(matrix(ncol = 20, nrow = 123))
+colnames(s_all) <- colnames(temps)[c(1,3:21)]
+
+#The function
+summer_end <- function(i,c,t){
+  
+  s_all[,i][1] <- 0
+  
+  temp_mean <- mean(temp_smoothed[,i][1:75])
+
+  for (j in 2:123){
+    s_all[,i][j] <- max(0, s_all[,i][j-1] + temp_mean - temp_smoothed[,i][j] - c)
+  }
+  
+  return (min(which(s_all[,i]>=t)))
+  
+}
+```
+
+```{r}
+#Store the detected end of summer day for each year from 1997 to 2015.
+end_summer <- rep(0,19)
+
+for (i in 1:19){
+    end_summer[[i]] <- summer_end(i,0.5*sd(temp_smoothed[,i]),5*sd(temp_smoothed[,i]))
+}
+
+end_summer
+```
+
+```{r}
+#store the actual dates in a new vector
+end_summer_dates <- vector(length(end_summer), mode = "list")
+#assign the date
+for (i in 1:19){
+  end_summer_dates[[i]] <- temp_smoothed$DAY[end_summer[[i]]]
+}
+
+head(end_summer_dates)
+```
+
+```{r}
+library(ggplot2)
+#get a clean year column
+years <- sub('.', '', colnames(temp_smoothed)[1:19])
+years
+
+#create a data frame for plotting
+end_summer_df <- data.frame(cbind(year = years, days = as.numeric(end_summer)))
+end_summer_df
+
+#plot the detected end of summer day by year
+ggplot(data=end_summer_df, aes(x=years, y=as.numeric(days), group=1)) +
+  geom_line(color="orange",lwd=1.5)+
+  geom_point()+
+  geom_text(
+    label=end_summer_dates, 
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T
+  )
+```
+
+```{r}
+#Same process but using the unsmoothed data
+s_all0 <- data.frame(matrix(ncol = 21, nrow = 123))
+colnames(s_all0) <- colnames(temps)[1:21]
+
+summer_end0 <- function(i,c,t){
+  
+  s_all0[,i][1] <- 0
+  
+  temp_mean <- mean(temps[,i][1:75])
+
+  for (j in 2:123){
+    s_all0[,i][j] <- max(0, s_all0[,i][j-1] + temp_mean - temps[,i][j] - c)
+  }
+  
+  return (min(which(s_all0[,i]>=t)))
+  
+}
+
+end_summer0 <- rep(0,20)
+
+for (i in 2:21){
+    end_summer0[[i-1]] <- summer_end0(i,0.5*sd(temps[,i]),5*sd(temps[,i]))
+}
+
+end_summer_dates0 <- vector(length(end_summer0), mode = "list")
+#assign the date
+for (i in 1:20){
+  end_summer_dates0[[i]] <- temps$DAY[end_summer0[[i]]]
+}
+
+years <- sub('.', '', colnames(temps)[3:21])
+years
+```
+
+```{r}
+#create a data frame for plotting
+end_summer_df0 <- data.frame(cbind(year = years, 
+                                   days = as.numeric(end_summer0[2:20])))
+
+library(gridExtra)
+#Raw data
+p1= ggplot(data=end_summer_df0, aes(x=years, y=as.numeric(days), group=1)) +
+  geom_line(color="blue",lwd=1.5)+
+  geom_point()+
+  ylim(45, 105) +
+  geom_text(
+    label=end_summer_dates0[2:20], 
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T
+  )
+
+p2 = ggplot(data=end_summer_df, aes(x=years, y=as.numeric(days), group=1)) +
+  geom_line(color="orange",lwd=1.5)+
+  geom_point()+
+  ylim(45, 105)+
+  geom_text(
+    label=end_summer_dates, 
+    nudge_x = 0.25, nudge_y = 0.25, 
+    check_overlap = T
+  )
+
+grid.arrange(p1, p2, nrow = 2)
+```
+
+```{r}
+end_summer
+test_df <- data.frame(year = c(1:19), days = as.numeric(end_summer))
+#A quick graphical analysis
+scatter.smooth(x=test_df$year, y=test_df$days, main="Summer Ending Day ~ Year")
+```
+
+
+
+

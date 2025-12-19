@@ -1,0 +1,215 @@
+---
+title: "Homework 8"
+author: "Joseph Shin"
+date: "2025-10-15"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Part 1: Stepwise Regression
+
+```{r}
+rm(list = ls())
+uscrime = read.table('uscrime.txt', header = TRUE)
+```
+
+# Backward Elimination. Use trace argument to suppress the output.
+
+```{r}
+model_back = lm(Crime~., data = uscrime)
+step(model_back,
+     direction = 'backward')
+step(model_back,
+     direction = 'backward',
+     trace = 0)
+```
+
+In the code above, I performed backward selection. Backward starts with the full model with all of the variables and removes the variable one at a time to reduce the AIC. As a result, our final model consists of the variables: M, Ed, Po1, M.F, U1, U2, Ineq, and Prob. The AIC is 503.93, which is the lowest out of all of them.
+
+# Forward Selection
+
+```{r}
+model_forward = lm(Crime~1, data = uscrime)
+step(model_forward,
+     scope = formula(lm(Crime~., data = uscrime)),
+     direction = 'forward',
+     k = 2)
+```
+
+In the code above, we performed forward selection. For forward selection, we start with the model with just the intercept and adds variables one at a time to reduce the AIC the most. The final model consists of the variables: Po1, Ineq, Ed, M, Prob, U2. The final model's AIC is 504.79.
+
+# Stepwise Regression
+
+```{r}
+model_step = lm(Crime~., data = uscrime)
+step(model_step,
+     scope = list(lower = formula(lm(Crime ~ 1, data = uscrime)),
+                  upper = formula(lm(Crime~., data = uscrime))),
+     direction = 'both')
+```
+```{r}
+summary(model_back)
+summary(model_step)
+```
+
+In the code above, we perform stepwise elimination (both directions). Stepwise elimination starts with the full model and looks at both additions and removals to the model at each step. The final model consists of the variables: M, Ed, Po1, M.F, U1, U2, Ineq, and Prob. The final model's AIC is 503.93.
+
+
+# LASSO
+
+First, I scaled the data.
+
+```{r}
+x = as.matrix(uscrime[, -which(names(uscrime) == 'Crime')])
+y = uscrime$Crime
+
+x_scaled = scale(x)
+```
+
+Next, I used cv.glmnet() to create my lasso model. 
+
+```{r}
+library(glmnet)
+set.seed(123)
+model_lasso = cv.glmnet(x = as.matrix(uscrime[,-16]),
+                        y = as.matrix(uscrime[,16]),
+                        alpha = 1,
+                        nfolds = 8,
+                        nlambda = 20,
+                        type.measure = "mse",
+                        family = "gaussian",
+                        standardize = TRUE)
+```
+
+```{r}
+model_lasso
+plot(model_lasso)
+model_lasso$lambda.min
+cbind(model_lasso$lambda, model_lasso$cvm, model_lasso$nzero)
+coef(model_lasso, s = model_lasso$lambda.min)
+```
+
+As you can see in the plot above, the minimum MSE occurs at log(lambda) when it is approximately equal to 2.2. At this lambda, the model keeps 10 variables.
+
+The right dashed line's lambda is slightly larger. It also has a slightly larger MSE, and it uses 9 variables.
+
+The output with the coefficients show the non-zero variables (coefficients) of the lambda.min. The coefficients are M, So, Ed, Po1, LF, M.F, NW, U2, Ineq, Prob. I will be focusing on prediction performance, so I will focus on using lambda.min. These are the 10 variables.
+
+
+```{r}
+min(model_lasso$cvm)
+```
+
+The RMSE of the lambda minimum is 193.16.
+
+I will try using a different lasso model. For this model, I will change nlambda to 100. The nlambda parameter controls the number of lambda values when fitting the model. In other words, we try 100 different values of lambda, ranging from a large value, which focuses strong regularization, to a small value, which focuses on weak regularization.
+
+```{r}
+model_lasso1 = cv.glmnet(x = as.matrix(uscrime[,-16]),
+                        y = as.matrix(uscrime[,16]),
+                        alpha = 1,
+                        nfolds = 8,
+                        nlambda = 100,
+                        type.measure = "mse",
+                        family = "gaussian",
+                        standardize = TRUE)
+```
+
+```{r}
+model_lasso1
+plot(model_lasso1)
+model_lasso1$lambda.min
+cbind(model_lasso1$lambda, model_lasso1$cvm, model_lasso1$nzero)
+coef(model_lasso1, s = model_lasso1$lambda.min)
+```
+
+```{r}
+min(model_lasso1$cvm)
+```
+
+I created one last model where nlambda = 200. Let's see what changes.
+
+```{r}
+set.seed(123)
+model_lasso2 = cv.glmnet(x = as.matrix(uscrime[,-16]),
+                        y = as.matrix(uscrime[,16]),
+                        alpha = 1,
+                        nfolds = 8,
+                        nlambda = 200,
+                        type.measure = "mse",
+                        family = "gaussian",
+                        standardize = TRUE)
+```
+
+```{r}
+model_lasso2
+plot(model_lasso2)
+model_lasso2$lambda.min
+cbind(model_lasso2$lambda, model_lasso2$cvm, model_lasso2$nzero)
+coef(model_lasso2, s = model_lasso2$lambda.min)
+```
+
+
+```{r}
+min(model_lasso2$cvm)
+```
+
+Based on all the models I created, the best model was the original model. The reason for this is that the RMSE is the lowest for that model. Since I am valuing predictive performance, a lower RMSE is ideal.
+
+Lower RMSE means that the model has the smallest average prediction error.
+
+# Elastic Net
+
+```{r}
+set.seed(123)
+model_enet <- cv.glmnet(
+  x = x_scaled,
+  y = y,
+  alpha = 0.5,           # Elastic Net
+  nlambda = 100,         # Grid of 100 lambda values
+  nfolds = 10,           # 10-fold cross-validation
+  type.measure = "mse",  # Use MSE as performance metric
+  family = "gaussian",
+  standardize = TRUE    # Already scaled manually
+)
+```
+
+```{r}
+model_enet
+plot(model_enet)
+model_enet$lambda.min
+cbind(model_enet$lambda, model_enet$cvm, model_enet$nzero)
+coef(model_enet, s = model_enet$lambda.min)
+```
+```{r}
+min(model_enet$cvm)
+```
+
+In this new model, I changed nlambda to 200 and nfolds to 15.
+
+```{r}
+set.seed(123)
+model_enet1 <- cv.glmnet(
+  x = x_scaled,
+  y = y,
+  alpha = 0.5,           # Elastic Net
+  nlambda = 200,         # Grid of 100 lambda values
+  nfolds = 15,           # 10-fold cross-validation
+  type.measure = "mse",  # Use MSE as performance metric
+  family = "gaussian",
+  standardize = TRUE    # Already scaled manually
+)
+```
+
+```{r}
+model_enet1
+plot(model_enet1)
+model_enet1$lambda.min
+cbind(model_enet1$lambda, model_enet1$cvm, model_enet1$nzero)
+coef(model_enet1, s = model_enet1$lambda.min)
+```
+
+```{r}
+min(model_enet1$cvm)
+```

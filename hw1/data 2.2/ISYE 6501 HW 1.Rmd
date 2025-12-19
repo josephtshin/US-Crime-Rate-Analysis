@@ -1,0 +1,288 @@
+---
+title: "ISYE 6501 HW 1"
+author: "Joseph Shin"
+date: "2025-08-19"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+library(kernlab)
+```
+
+```{r}
+data = read.csv("credit_card_data-headers.txt", header = TRUE, sep = "\t")
+```
+
+2.2.1: Using the vanilladot kernel
+
+C = 100
+
+```{r}
+model = ksvm(as.matrix(data[,1:10]), as.factor(data[,11]), type = "C-svc", kernel = "vanilladot", C = 100, scaled = TRUE)
+model
+a = colSums(model@xmatrix[[1]] * model@coef[[1]])
+a
+a0 = -model@b
+a0
+pred = predict(model, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+y = factor(data[,11])
+false_positives <- sum(pred == 1 & y == 0)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm = table(actual = y, pred = pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+C = 1000000
+
+```{r}
+model2 = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "vanilladot", C = 1000000, scaled = TRUE)
+model2
+a = colSums(model2@xmatrix[[1]] * model2@coef[[1]])
+a0 = -model2@b
+a0
+pred = predict(model2, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm <- table(actual=y, pred=pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+
+C = .01
+
+```{r}
+model3 = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "vanilladot", C =.01, scaled = TRUE)
+model3
+a = colSums(model3@xmatrix[[1]] * model3@coef[[1]])
+a
+a0 = -model3@b
+a0
+pred = predict(model3, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm <- table(actual=y, pred=pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+
+C = .001
+
+```{r}
+model4 = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "vanilladot", C = .001, scaled = TRUE)
+model4
+a = colSums(model4@xmatrix[[1]] * model4@coef[[1]])
+a
+a0 = -model4@b
+a0
+pred = predict(model4, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm <- table(actual=y, pred=pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+C = .0001
+
+```{r}
+model5 = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "vanilladot", C = .0001, scaled = TRUE)
+model5
+a = colSums(model5@xmatrix[[1]] * model5@coef[[1]])
+a
+a0 = -model5@b
+a0
+pred = predict(model5, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+```
+
+2.2.2
+
+Testing different kernels (I will be testing different C values to try to increase the accuracy percentage of each model as well as minimizing the number of false positives.)
+
+Using rbfdot kernel:
+
+```{r}
+rbfmod = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "rbfdot", C = 1, scaled = TRUE)
+rbfmod
+a = colSums(rbfmod@xmatrix[[1]] * rbfmod@coef[[1]])
+a
+a0 = -rbfmod@b
+a0
+pred = predict(rbfmod, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm <- table(actual=y, pred=pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+Using polydot kernel:
+
+```{r}
+polymod = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "polydot", C = .001, scaled = TRUE)
+polymod
+a = colSums(polymod@xmatrix[[1]] * polymod@coef[[1]])
+a
+a0 = -polymod@b
+a0
+pred = predict(polymod, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm <- table(actual=y, pred=pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+
+Using tanhdot kernel:
+
+```{r}
+tanhmod = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "tanhdot", C = 100, scaled = TRUE)
+tanhmod
+a = colSums(tanhmod@xmatrix[[1]] * tanhmod@coef[[1]])
+a
+a0 = -tanhmod@b
+a0
+pred = predict(tanhmod, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm <- table(actual=y, pred=pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+
+Using anovadot kernel:
+
+```{r}
+anovamod = ksvm(as.matrix(data[,1:10]), data[,11], type = "C-svc", kernel = "anovadot", C = .01, scaled = TRUE)
+anovamod
+a = colSums(anovamod@xmatrix[[1]] * anovamod@coef[[1]])
+a
+a0 = -anovamod@b
+a0
+pred = predict(anovamod, data[,1:10])
+pred
+sum(pred == data[,11]) / nrow(data)
+
+x = as.matrix(data[,1:10])
+y = factor(data[,11], levels = c(0,1))
+cm <- table(actual=y, pred=pred)
+FP <- cm["0","1"]  # false positives: predicted 1, actual 0
+FN <- cm["1","0"]  # false negatives: predicted 0, actual 1
+FP; FN
+```
+
+
+Question 2.2.3: k-nearest-neighbors classification
+
+```{r}
+library(kknn)
+```
+
+```{r}
+accuracy_knn = function(x) {
+  pred = rep(0, (nrow(data)))
+  
+for (i in 1:nrow(data)) {
+  
+model = kknn(R1 ~. , train = data[-i,], test = data[i,], k = x, scale = TRUE, kernel = "optimal")
+
+pred[i] <- as.integer(fitted(model)+0.5)
+
+}
+  
+  accuracy = sum(pred == data[,11]) / nrow(data)
+  return(accuracy)
+}
+
+accuracy_vector <- 1:20
+for (x in 1:20){
+  accuracy_vector[x] = accuracy_knn(x) * 100
+}
+accuracy_vector
+
+knn_value = c(1:20)
+plot(knn_value, accuracy_vector)
+```
+
+```{r}
+max(accuracy_vector)
+which.max(accuracy_vector)
+```
+
+
+Rectangular Kernel
+
+```{r}
+accuracy_knn = function(x) {
+  pred = rep(0, (nrow(data))) #Create a vector of 0's to store in the predicted
+  
+for (i in 1:nrow(data)) {
+  
+model = kknn(R1 ~. , train = data[-i,], test = data[i,], k = x, scale = TRUE, kernel = "rectangular")
+
+pred[i] <- as.integer(fitted(model)+0.5)
+
+}
+  
+  accuracy = sum(pred == data[,11]) / nrow(data)
+  return(accuracy)
+}
+
+accuracy_vector <- 1:20
+for (x in 1:20){
+  accuracy_vector[x] = accuracy_knn(x) * 100
+}
+accuracy_vector
+
+knn_value = 1:20
+plot(knn_value, accuracy_vector)
+```
+
+```{r}
+max(accuracy_vector)
+which.max(accuracy_vector)
+```
+
+
+
+
+
+
